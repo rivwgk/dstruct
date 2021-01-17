@@ -16,6 +16,8 @@ module AVLTree
       procedure, private :: height => avl_node_height
       procedure, private :: min => avl_node_min
       procedure, private :: max => avl_node_max
+      procedure, private :: is_leaf => avl_node_isleaf
+      procedure, private :: is_inner => avl_node_isinner
    end type
    interface avl_node
       module procedure :: new_avl_node
@@ -177,13 +179,79 @@ contains
       end if
    end subroutine
 
-   subroutine avl_node_remove(node, key, stat)
+   recursive subroutine avl_node_remove(node, key, stat)
       class(avl_node), allocatable, intent(inout) :: node
       character(len=*), intent(in) :: key
       logical, intent(out) :: stat
       class(avl_node), allocatable :: left, right, dum
 
-      stat = .false.
+      if (key .lt. node%key) then
+         if (allocated(node%left)) then
+            if (key .eq. node%left%key) then
+               stat = .true.
+               if (node%left%is_leaf()) then
+                  call destroy_avl_node(node%left)
+               else if (node%left%is_inner()) then
+                  if (.not.allocated(node%left%right%left)) then
+                     call move_alloc(node%left%left, node%left%right%left)
+                     call move_alloc(node%left%right, dum)
+                     call destroy_avl_node(node%left)
+                     call move_alloc(dum, node%left)
+                  else 
+                     ! TODO
+                  end if
+               else if (allocated(node%left%left)) then
+                  call move_alloc(node%left%left, dum)
+                  call destroy_avl_node(node%left)
+                  call move_alloc(dum, node%left)
+               else ! (allocated(node%left%right)) then
+                  call move_alloc(node%left%right, dum)
+                  call destroy_avl_node(node%left)
+                  call move_alloc(dum, node%right)
+               end if
+            else
+               call avl_node_remove(node%left, key, stat)
+               if (stat) then
+                  ! TODO
+               end if
+            end if
+         else
+            stat = .false.
+         end if
+      else ! (key .gt. node%key) then
+         if (allocated(node%right)) then
+            if (key .eq. node%right%key) then
+               stat = .true.
+               if (node%right%is_leaf()) then
+                  call destroy_avl_node(node%right)
+               else if (node%right%is_inner()) then
+                  if (.not.allocated(node%right%right%left)) then
+                     call move_alloc(node%right%left, node%right%right%left)
+                     call move_alloc(node%right%right, dum)
+                     call destroy_avl_node(node%right)
+                     call move_alloc(dum, node%right)
+                  else
+                     ! TODO
+                  end if
+               else if (allocated(node%right%left)) then
+                  call move_alloc(node%right%left, dum)
+                  call destroy_avl_node(node%right)
+                  call move_alloc(dum, node%right)
+               else ! (allocated(node%right%right)) then
+                  call move_alloc(node%right%right, dum)
+                  call destroy_avl_node(node%right)
+                  call move_alloc(dum, node%right)
+               end if
+            else
+               call avl_node_remove(node%right, key, stat)
+               if (stat) then
+                  ! TODO
+               end if
+            end if
+         else
+            stat = .false.
+         end if
+      end if
    end subroutine
 
    subroutine avl_node_rebalance(node, key, mid)
@@ -278,6 +346,18 @@ contains
       avl_node_balance = left_height - right_height
    end function
 
+   pure function avl_node_isleaf(self)
+      logical :: avl_node_isleaf
+      class(avl_node), intent(in) :: self
+      avl_node_isleaf = .not.(allocated(self%left).or.allocated(self%right))
+   end function
+
+   pure function avl_node_isinner(self)
+      logical :: avl_node_isinner
+      class(avl_node), intent(in) :: self
+      avl_node_isinner = allocated(self%left).and.allocated(self%right)
+   end function
+
    pure recursive function avl_node_height(self)
       integer :: avl_node_height
       class(avl_node), intent(in) :: self
@@ -360,13 +440,42 @@ contains
       class(avl_tree), intent(inout) :: self
       character(len=*), intent(in) :: key
       logical, intent(out) :: stat
+      class(avl_node), allocatable :: left, dum
 
       if (self%empty()) then
          stat = .false.
       else if (self%head%key .eq. key) then
+         stat = .true.
+         if (self%head%is_leaf()) then
+            call destroy_avl_node(self%head)
+         else if (self%head%is_inner()) then
+            if (.not.allocated(self%head%right%left)) then
+               call move_alloc(self%head%left, self%head%right%left)
+               call move_alloc(self%head%right, dum)
+               call destroy_avl_node(self%head)
+               call move_alloc(dum, self%head)
 
+               call avl_node_rebalance(self%head, key, dum)
+               if (allocated(dum)) then
+                  call move_alloc(dum, self%head)
+               end if
+            else
+               ! TODO
+            end if
+         else if (allocated(self%head%left)) then
+            call move_alloc(self%head%left, dum)
+            deallocate(self%head)
+            call move_alloc(dum, self%head)
+         else ! (allocated(self%head%right)) then
+            call move_alloc(self%head%right, dum)
+            deallocate(self%head)
+            call move_alloc(dum, self%head)
+         end if
       else
          call avl_node_remove(self%head, key, stat)
+         if (stat) then
+            ! TODO
+         end if
       end if
    end subroutine
 
@@ -465,11 +574,13 @@ contains
    subroutine avl_tree_postorder_next(self, node)
       class(avl_tree_postorder), intent(inout) :: self
       class(avl_node), pointer, intent(out) :: node
+      ! TODO
    end subroutine
 
    pure function avl_tree_postorder_has_next(self)
       logical :: avl_tree_postorder_has_next
       class(avl_tree_postorder), intent(in) :: self
+      ! TODO
    end function
 
    
@@ -477,16 +588,18 @@ contains
    pure function new_avl_tree_levelorder(tree)
       type(avl_tree_levelorder) :: new_avl_tree_levelorder
       class(avl_tree), intent(in) :: tree
-
+      ! TODO
    end function
 
    subroutine avl_tree_levelorder_next(self, node)
       class(avl_tree_levelorder), intent(inout) :: self
       class(avl_node), pointer, intent(out) :: node
+      ! TODO
    end subroutine
 
    pure function avl_tree_levelorder_has_next(self)
       logical :: avl_tree_levelorder_has_next
       class(avl_tree_levelorder), intent(in) :: self
+      ! TODO
    end function
 end module

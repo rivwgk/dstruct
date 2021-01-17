@@ -9,5 +9,5 @@ but not anymore with either of
  + `nvfortran` (20.9-0)
 
 Currently here can be found:
- + AVL tree, you can currently neither remove elements nor can you traverse
-   the tree with iterators
+ + AVL tree, general removal is not yet supported, but for some special cases
+   you can already remove keys. Tree traversal is not yet implemented
