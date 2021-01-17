@@ -15,13 +15,15 @@ program avltest
    call test_add(tree, 'a', 3, stat)
    call test_add(tree, 'b', 2, stat) ! rebalance left-right
    call test_add(tree, 'h', 5, stat)
-   call test_add(tree, 'k', 8, stat) ! rebalance right-right
-   call test_add(tree, 'n', 9, stat)
-   call test_add(tree, 'm', 7, stat) ! rebalance right-left
+   call test_add(tree, 'k', 10, stat) ! rebalance right-right
+   call test_add(tree, 'n', 11, stat)
+   call test_add(tree, 'm', 9, stat) ! rebalance right-left
+   call test_add(tree, 'e', 7, stat)
+   call test_add(tree, 'g', 8, stat)
 
+   call test_remove(tree, 'h', stat)
    call test_remove(tree, 'n', stat)
    call test_remove(tree, 'm', stat)
-   call test_remove(tree, 'h', stat)
 
    call destroy_avl_tree(tree)
 contains

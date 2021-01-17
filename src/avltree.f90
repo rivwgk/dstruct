@@ -154,7 +154,7 @@ contains
          if (allocated(self%left)) then
             call self%left%add(key, val, stat)
             if (stat) then
-               call avl_node_rebalance(self%left, key, mid)
+               call avl_node_rebalance(self%left, mid)
                if (allocated(mid)) then
                   call move_alloc(mid, self%left)
                end if
@@ -167,7 +167,7 @@ contains
          if (allocated(self%right)) then
             call self%right%add(key, val, stat)
             if (stat) then
-               call avl_node_rebalance(self%right, key, mid)
+               call avl_node_rebalance(self%right, mid)
                if (allocated(mid)) then
                   call move_alloc(mid, self%right)
                end if
@@ -180,7 +180,7 @@ contains
    end subroutine
 
    recursive subroutine avl_node_remove(node, key, stat)
-      class(avl_node), allocatable, intent(inout) :: node
+      class(avl_node), intent(inout) :: node
       character(len=*), intent(in) :: key
       logical, intent(out) :: stat
       class(avl_node), allocatable :: left, right, dum
@@ -189,63 +189,35 @@ contains
          if (allocated(node%left)) then
             if (key .eq. node%left%key) then
                stat = .true.
-               if (node%left%is_leaf()) then
-                  call destroy_avl_node(node%left)
-               else if (node%left%is_inner()) then
-                  if (.not.allocated(node%left%right%left)) then
-                     call move_alloc(node%left%left, node%left%right%left)
-                     call move_alloc(node%left%right, dum)
-                     call destroy_avl_node(node%left)
-                     call move_alloc(dum, node%left)
-                  else 
-                     ! TODO
-                  end if
-               else if (allocated(node%left%left)) then
-                  call move_alloc(node%left%left, dum)
-                  call destroy_avl_node(node%left)
-                  call move_alloc(dum, node%left)
-               else ! (allocated(node%left%right)) then
-                  call move_alloc(node%left%right, dum)
-                  call destroy_avl_node(node%left)
-                  call move_alloc(dum, node%right)
-               end if
+               call avl_node_unlink(node%left, dum)
+               call destroy_avl_node(node%left)
+               call move_alloc(dum, node%left)
             else
                call avl_node_remove(node%left, key, stat)
                if (stat) then
-                  ! TODO
+                  call avl_node_rebalance(node%left, dum)
+                  if (allocated(dum)) then
+                     call move_alloc(dum, node%left)
+                  end if
                end if
             end if
          else
             stat = .false.
          end if
-      else ! (key .gt. node%key) then
+      else if (key .gt. node%key) then
          if (allocated(node%right)) then
             if (key .eq. node%right%key) then
                stat = .true.
-               if (node%right%is_leaf()) then
-                  call destroy_avl_node(node%right)
-               else if (node%right%is_inner()) then
-                  if (.not.allocated(node%right%right%left)) then
-                     call move_alloc(node%right%left, node%right%right%left)
-                     call move_alloc(node%right%right, dum)
-                     call destroy_avl_node(node%right)
-                     call move_alloc(dum, node%right)
-                  else
-                     ! TODO
-                  end if
-               else if (allocated(node%right%left)) then
-                  call move_alloc(node%right%left, dum)
-                  call destroy_avl_node(node%right)
-                  call move_alloc(dum, node%right)
-               else ! (allocated(node%right%right)) then
-                  call move_alloc(node%right%right, dum)
-                  call destroy_avl_node(node%right)
-                  call move_alloc(dum, node%right)
-               end if
+               call avl_node_unlink(node%right, dum)
+               call destroy_avl_node(node%right)
+               call move_alloc(dum, node%right)
             else
                call avl_node_remove(node%right, key, stat)
                if (stat) then
-                  ! TODO
+                  call avl_node_rebalance(node%right, dum)
+                  if (allocated(dum)) then
+                     call move_alloc(dum, node%right)
+                  end if
                end if
             end if
          else
@@ -254,14 +226,59 @@ contains
       end if
    end subroutine
 
-   subroutine avl_node_rebalance(node, key, mid)
+   subroutine avl_node_unlink(node, new_node)
+      class(avl_node), intent(inout) :: node
+      class(avl_node), allocatable, intent(out) :: new_node
+      class(avl_node), allocatable :: dum
+
+      if (node%is_leaf()) then
+         ! no children to unlink
+      else if (node%is_inner()) then
+         if (.not.allocated(node%right%left)) then
+            call move_alloc(node%left, node%right%left)
+            call move_alloc(node%right, new_node)
+         else
+            call unlink_min_node(node%right, dum)
+            call move_alloc(node%left, dum%left)
+            call move_alloc(node%right, dum%right)
+            call move_alloc(dum, new_node)
+         end if
+      else if (allocated(node%left)) then
+         call move_alloc(node%left, new_node)
+      else ! (allocated(node%right)) then
+         call move_alloc(node%right, new_node)
+      end if
+   contains
+      recursive subroutine unlink_min_node(node, min)
+         class(avl_node), intent(inout) :: node
+         class(avl_node), allocatable, intent(out) :: min
+         class(avl_node), allocatable :: dum
+
+         if (allocated(node%left)) then
+            if (.not.allocated(node%left%left)) then
+               call move_alloc(node%left, min)
+            else
+               call unlink_min_node(node%left, min)
+               call avl_node_rebalance(node%left, dum)
+               if (allocated(dum)) then
+                  call move_alloc(dum, node%left)
+               end if
+            end if 
+         end if
+      end subroutine
+   end subroutine
+
+   subroutine avl_node_rebalance(node, mid)
       class(avl_node), allocatable, intent(inout) :: node
-      character(len=*), intent(in) :: key
       class(avl_node), allocatable, intent(out) :: mid
 
       class(avl_node), allocatable :: child,grandchild,t1,t2,t3,t4,min,max
       integer :: balance
       logical :: left
+
+      if (.not.allocated(node)) then
+         return
+      end if
 
       balance = node%balance()
       if (abs(balance) .le. 1) then
@@ -274,7 +291,7 @@ contains
          call move_alloc(node%left, child)
       end if
 
-      if (key .lt. child%key) then
+      if (child%balance() .gt. 0) then
          call move_alloc(child%left, grandchild)
       else
          call move_alloc(child%right, grandchild)
@@ -428,7 +445,7 @@ contains
       else
          call avl_node_add(self%head, key, val, stat)
          if (stat) then
-            call avl_node_rebalance(self%head, key, mid)
+            call avl_node_rebalance(self%head, mid)
             if (allocated(mid)) then
                call move_alloc(mid, self%head)
             end if
@@ -446,35 +463,21 @@ contains
          stat = .false.
       else if (self%head%key .eq. key) then
          stat = .true.
-         if (self%head%is_leaf()) then
-            call destroy_avl_node(self%head)
-         else if (self%head%is_inner()) then
-            if (.not.allocated(self%head%right%left)) then
-               call move_alloc(self%head%left, self%head%right%left)
-               call move_alloc(self%head%right, dum)
-               call destroy_avl_node(self%head)
-               call move_alloc(dum, self%head)
+         call avl_node_unlink(self%head, dum)
+         call destroy_avl_node(self%head)
+         call move_alloc(dum, self%head)
 
-               call avl_node_rebalance(self%head, key, dum)
-               if (allocated(dum)) then
-                  call move_alloc(dum, self%head)
-               end if
-            else
-               ! TODO
-            end if
-         else if (allocated(self%head%left)) then
-            call move_alloc(self%head%left, dum)
-            deallocate(self%head)
-            call move_alloc(dum, self%head)
-         else ! (allocated(self%head%right)) then
-            call move_alloc(self%head%right, dum)
-            deallocate(self%head)
+         call avl_node_rebalance(self%head, dum)
+         if (allocated(dum)) then
             call move_alloc(dum, self%head)
          end if
       else
          call avl_node_remove(self%head, key, stat)
          if (stat) then
-            ! TODO
+            call avl_node_rebalance(self%head, dum)
+            if (allocated(dum)) then
+               call move_alloc(dum, self%head)
+            end if
          end if
       end if
    end subroutine
