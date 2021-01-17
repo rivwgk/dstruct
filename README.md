@@ -1,12 +1,12 @@
 dstruct
 =======
 
-Will provide some data structures for use in Fortran, which should also be
-easy to adapt.
-
-Compiles and runs currently with:
- + gfortran (10.2.0)
- + nvfortran (20.9-0)
+Having moved onward to using `allocatable` nodes instead of `pointer` in the
+AVL tree the code compiles with
+ + `ifort` (2021.1 Beta 20201112)
+but not anymore with either of
+ + `gfortran` (10.2.0)
+ + `nvfortran` (20.9-0)
 
 Currently here can be found:
  + AVL tree, you can currently neither remove elements nor can you traverse
