@@ -4,10 +4,10 @@ program avltest
    type(avl_tree), target :: tree
    logical :: stat
 
-   call test_add(tree, 'f', 6, stat)
-   call test_add(tree, 'd', 1, stat)
-   call test_remove(tree, 'f', stat)
-   call test_remove(tree, 'd', stat)
+   call test_add(tree, 'x', -2, stat)
+   call test_add(tree, 'y', 5, stat)
+   call test_remove(tree, 'x', stat)
+   call test_remove(tree, 'y', stat)
 
    call test_add(tree, 'f', 6, stat)
    call test_add(tree, 'd', 1, stat)
@@ -33,7 +33,7 @@ contains
       integer :: i
 
       if (.not.allocated(node)) then
-         print*, '(empty tree)'
+         print*, '-'
          return
       end if
 
@@ -56,7 +56,7 @@ contains
       integer, intent(in) :: val
       logical, intent(out) :: stat
       call tree%add(key, val, stat)
-      print'(a, a, a, i)', 'added key `', key, '` height: ', tree%height()
+      print'(a,a,a,i)', 'added key `', key, '` height: ', tree%height()
       call output_tree(tree%head, 0)
    end subroutine
 
@@ -65,7 +65,7 @@ contains
       character(len=*), intent(in) :: key
       logical, intent(out) :: stat
       call tree%remove(key, stat)
-      print'(a, a, a, i)', 'removed key `', key, '` height: ', tree%height()
+      print'(a,a,a,i)', 'removed key `', key, '` height: ', tree%height()
       call output_tree(tree%head, 0)
   end subroutine
 end program

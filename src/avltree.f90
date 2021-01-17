@@ -179,10 +179,11 @@ contains
       end if
    end subroutine
 
-   recursive subroutine avl_node_remove(node, key, stat)
+   recursive subroutine avl_node_remove(node, key, stat, removed)
       class(avl_node), intent(inout) :: node
       character(len=*), intent(in) :: key
       logical, intent(out) :: stat
+      class(avl_node), allocatable, optional, intent(out) :: removed
       class(avl_node), allocatable :: left, right, dum
 
       if (key .lt. node%key) then
@@ -190,7 +191,11 @@ contains
             if (key .eq. node%left%key) then
                stat = .true.
                call avl_node_unlink(node%left, dum)
-               call destroy_avl_node(node%left)
+               if (.not.present(removed)) then
+                  call destroy_avl_node(node%left)
+               else
+                  call move_alloc(node%left, removed)
+               end if
                call move_alloc(dum, node%left)
             else
                call avl_node_remove(node%left, key, stat)
@@ -209,7 +214,11 @@ contains
             if (key .eq. node%right%key) then
                stat = .true.
                call avl_node_unlink(node%right, dum)
-               call destroy_avl_node(node%right)
+               if (.not.present(removed)) then
+                  call destroy_avl_node(node%right)
+               else
+                  call move_alloc(node%right, removed)
+               end if
                call move_alloc(dum, node%right)
             else
                call avl_node_remove(node%right, key, stat)
@@ -229,7 +238,6 @@ contains
    subroutine avl_node_unlink(node, new_node)
       class(avl_node), intent(inout) :: node
       class(avl_node), allocatable, intent(out) :: new_node
-      class(avl_node), allocatable :: dum
 
       if (node%is_leaf()) then
          ! no children to unlink
@@ -238,10 +246,9 @@ contains
             call move_alloc(node%left, node%right%left)
             call move_alloc(node%right, new_node)
          else
-            call unlink_min_node(node%right, dum)
-            call move_alloc(node%left, dum%left)
-            call move_alloc(node%right, dum%right)
-            call move_alloc(dum, new_node)
+            call unlink_min_node(node%right, new_node)
+            call move_alloc(node%left, new_node%left)
+            call move_alloc(node%right, new_node%right)
          end if
       else if (allocated(node%left)) then
          call move_alloc(node%left, new_node)
@@ -391,23 +398,23 @@ contains
       avl_node_height = max(left_height, right_height) + 1
    end function
 
-   pure recursive function avl_node_min(self)
-      integer :: avl_node_min
-      class(avl_node), intent(in) :: self
+   recursive function avl_node_min(self)
+      class(avl_node), pointer :: avl_node_min
+      class(avl_node), target, intent(in) :: self
       if (allocated(self%left)) then
-         avl_node_min = self%left%min()
+         avl_node_min => self%left%min()
       else
-         avl_node_min = self%val
+         avl_node_min => self
       end if
    end function
 
-   pure recursive function avl_node_max(self)
-      integer :: avl_node_max
-      class(avl_node), intent(in) :: self
+   recursive function avl_node_max(self)
+      class(avl_node), pointer :: avl_node_max
+      class(avl_node), target, intent(in) :: self
       if (allocated(self%right)) then
-         avl_node_max = self%right%max()
+         avl_node_max => self%right%max()
       else
-         avl_node_max = self%val
+         avl_node_max => self
       end if
    end function
 
@@ -492,24 +499,26 @@ contains
       end if
    end function
 
-   pure subroutine avl_tree_min(self, min, stat)
+   subroutine avl_tree_min(self, min, stat)
       class(avl_tree), intent(in) :: self
-      integer, intent(out) :: min
+      class(avl_node), pointer, intent(out) :: min
       logical, intent(out) :: stat
       stat = .false.
+      nullify(min)
       if (allocated(self%head)) then
-         min = self%head%min()
+         min => self%head%min()
          stat = .true.
       end if
    end subroutine
 
-   pure subroutine avl_tree_max(self, max, stat)
+   subroutine avl_tree_max(self, max, stat)
       class(avl_tree), intent(in) :: self
-      integer, intent(out) :: max
+      class(avl_node), pointer, intent(out) :: max
       logical, intent(out) :: stat
       stat = .false.
+      nullify(max)
       if (allocated(self%head)) then
-         max = self%head%max()
+         max => self%head%max()
          stat = .true.
       end if
    end subroutine
