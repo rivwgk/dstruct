@@ -8,8 +8,6 @@ sources = []
 mapping_sources = []
 subdir('src')
 
-add_global_arguments('-pie', language: 'fortran')
-
 dstruct_lib = library(
   meson.project_name(),
   sources: sources,
