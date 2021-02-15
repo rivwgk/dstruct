@@ -5,14 +5,22 @@ project(
 )
 
 sources = []
+mapping_sources = []
 subdir('src')
+
+add_global_arguments('-pie', language: 'fortran')
 
 dstruct_lib = library(
   meson.project_name(),
   sources: sources,
 )
 
-dstruct_dep = declare_dependency(
+map_test = executable(
+  'mapping_test',
+  sources: mapping_sources,
   link_with: dstruct_lib,
-  include_directories: dstruct_lib.private_dir_include(),
+)
+test(
+  'testing default operations of mapping',
+  map_test,
 )

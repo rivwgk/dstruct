@@ -1,14 +1,19 @@
 module AVLTree
    implicit none
    private
-   public :: avl_tree, avl_node, destroy_avl_tree, iterator, &
-      & avl_tree_preorder, avl_tree_inorder, avl_tree_postorder, &
-      & avl_tree_levelorder
+   public :: avl_tree
+   public :: avl_node
+   public :: destroy_avl_tree
+   public :: iterator
+   public :: avl_tree_preorder
+   public :: avl_tree_inorder
+   public :: avl_tree_postorder
+   public :: avl_tree_levelorder
 
    type :: avl_node
       character(len=:), allocatable :: key
       integer :: val
-      class(avl_node), allocatable :: left, right
+      class(avl_node), pointer :: left, right
    contains
       procedure, private :: find => avl_node_find
       procedure, private :: add => avl_node_add
@@ -24,7 +29,7 @@ module AVLTree
    end interface
 
    type :: avl_tree
-      class(avl_node), allocatable :: head
+      class(avl_node), pointer :: head
    contains
       procedure :: empty => avl_tree_empty
       procedure :: find => avl_tree_find
@@ -101,16 +106,18 @@ contains
 
       new_avl_node%key = key
       new_avl_node%val = val
+      nullify(new_avl_node%left)
+      nullify(new_avl_node%right)
    end function
 
    recursive subroutine destroy_avl_node(node)
-      class(avl_node), allocatable, intent(inout) :: node
+      class(avl_node), pointer, intent(inout) :: node
       integer :: stat
       character(len=512) :: err_msg
-      if (allocated(node%left)) then
+      if (associated(node%left)) then
          call destroy_avl_node(node%left)
       end if
-      if (allocated(node%right)) then
+      if (associated(node%right)) then
          call destroy_avl_node(node%right)
       end if
       deallocate(node, stat=stat, errmsg=err_msg)
@@ -131,11 +138,11 @@ contains
          stat = .true.
          node => self
       else if (key .lt. self%key) then
-         if (allocated(self%left)) then
+         if (associated(self%left)) then
             call self%left%find(key, stat, node)
          end if
       else
-         if (allocated(self%right)) then
+         if (associated(self%right)) then
             call self%right%find(key, stat, node)
          end if
       end if
@@ -146,17 +153,17 @@ contains
       character(len=*), intent(in) :: key
       integer, intent(in) :: val
       logical, intent(out) :: stat
-      class(avl_node), allocatable :: mid
+      class(avl_node), pointer :: mid
 
       if (self%key .eq. key) then
          stat = .false.
       else if (key .lt. self%key) then
-         if (allocated(self%left)) then
+         if (associated(self%left)) then
             call self%left%add(key, val, stat)
             if (stat) then
                call avl_node_rebalance(self%left, mid)
-               if (allocated(mid)) then
-                  call move_alloc(mid, self%left)
+               if (associated(mid)) then
+                  self%left => mid
                end if
             end if
          else
@@ -164,12 +171,12 @@ contains
             stat = .true.
          end if
       else
-         if (allocated(self%right)) then
+         if (associated(self%right)) then
             call self%right%add(key, val, stat)
             if (stat) then
                call avl_node_rebalance(self%right, mid)
-               if (allocated(mid)) then
-                  call move_alloc(mid, self%right)
+               if (associated(mid)) then
+                  self%right => mid
                end if
             end if
          else
@@ -183,26 +190,26 @@ contains
       class(avl_node), intent(inout) :: node
       character(len=*), intent(in) :: key
       logical, intent(out) :: stat
-      class(avl_node), allocatable, optional, intent(out) :: removed
-      class(avl_node), allocatable :: left, right, dum
+      class(avl_node), pointer, optional, intent(out) :: removed
+      class(avl_node), pointer :: left, right, dum
 
       if (key .lt. node%key) then
-         if (allocated(node%left)) then
+         if (associated(node%left)) then
             if (key .eq. node%left%key) then
                stat = .true.
                call avl_node_unlink(node%left, dum)
                if (.not.present(removed)) then
                   call destroy_avl_node(node%left)
                else
-                  call move_alloc(node%left, removed)
+                  removed => node%left
                end if
-               call move_alloc(dum, node%left)
+               node%left => dum
             else
                call avl_node_remove(node%left, key, stat)
                if (stat) then
                   call avl_node_rebalance(node%left, dum)
-                  if (allocated(dum)) then
-                     call move_alloc(dum, node%left)
+                  if (associated(dum)) then
+                     node%left => dum
                   end if
                end if
             end if
@@ -210,22 +217,22 @@ contains
             stat = .false.
          end if
       else if (key .gt. node%key) then
-         if (allocated(node%right)) then
+         if (associated(node%right)) then
             if (key .eq. node%right%key) then
                stat = .true.
                call avl_node_unlink(node%right, dum)
                if (.not.present(removed)) then
                   call destroy_avl_node(node%right)
                else
-                  call move_alloc(node%right, removed)
+                  removed => node%right
                end if
-               call move_alloc(dum, node%right)
+               node%right => dum
             else
                call avl_node_remove(node%right, key, stat)
                if (stat) then
                   call avl_node_rebalance(node%right, dum)
-                  if (allocated(dum)) then
-                     call move_alloc(dum, node%right)
+                  if (associated(dum)) then
+                     node%right => dum
                   end if
                end if
             end if
@@ -237,38 +244,47 @@ contains
 
    subroutine avl_node_unlink(node, new_node)
       class(avl_node), intent(inout) :: node
-      class(avl_node), allocatable, intent(out) :: new_node
+      class(avl_node), pointer, intent(out) :: new_node
 
+      nullify(new_node)
       if (node%is_leaf()) then
          ! no children to unlink
       else if (node%is_inner()) then
-         if (.not.allocated(node%right%left)) then
-            call move_alloc(node%left, node%right%left)
-            call move_alloc(node%right, new_node)
+         if (.not.associated(node%right%left)) then
+            node%right%left => node%left
+            new_node => node%right
+            nullify(node%left)
+            nullify(node%right)
          else
             call unlink_min_node(node%right, new_node)
-            call move_alloc(node%left, new_node%left)
-            call move_alloc(node%right, new_node%right)
+            new_node%left => node%left
+            new_node%right => node%right
+            nullify(node%left)
+            nullify(node%right)
          end if
-      else if (allocated(node%left)) then
-         call move_alloc(node%left, new_node)
-      else ! (allocated(node%right)) then
-         call move_alloc(node%right, new_node)
+      else if (associated(node%left)) then
+         new_node => node%left
+         nullify(node%left)
+      else ! (associated(node%right)) then
+         new_node => node%right
+         nullify(node%right)
       end if
    contains
       recursive subroutine unlink_min_node(node, min)
          class(avl_node), intent(inout) :: node
-         class(avl_node), allocatable, intent(out) :: min
-         class(avl_node), allocatable :: dum
+         class(avl_node), pointer, intent(out) :: min
+         class(avl_node), pointer :: dum
 
-         if (allocated(node%left)) then
-            if (.not.allocated(node%left%left)) then
-               call move_alloc(node%left, min)
+         if (associated(node%left)) then
+            if (.not.associated(node%left%left)) then
+               min => node%left
+               nullify(node%left)
             else
                call unlink_min_node(node%left, min)
                call avl_node_rebalance(node%left, dum)
-               if (allocated(dum)) then
-                  call move_alloc(dum, node%left)
+               if (associated(dum)) then
+                  node%left => dum
+                  nullify(dum)
                end if
             end if 
          end if
@@ -276,14 +292,13 @@ contains
    end subroutine
 
    subroutine avl_node_rebalance(node, mid)
-      class(avl_node), allocatable, intent(inout) :: node
-      class(avl_node), allocatable, intent(out) :: mid
+      class(avl_node), pointer, intent(inout) :: node
+      class(avl_node), pointer, intent(out) :: mid
 
-      class(avl_node), allocatable :: child,grandchild,t1,t2,t3,t4,min,max
+      class(avl_node), pointer :: child,grandchild,t1,t2,t3,t4,min,max
       integer :: balance
-      logical :: left
 
-      if (.not.allocated(node)) then
+      if (.not.associated(node)) then
          return
       end if
 
@@ -293,66 +308,70 @@ contains
       end if
 
       if (balance .lt. 0) then
-         call move_alloc(node%right, child)
+         child => node%right
+         nullify(node%right)
       else
-         call move_alloc(node%left, child)
+         child => node%left
+         nullify(node%left)
       end if
 
       if (child%balance() .gt. 0) then
-         call move_alloc(child%left, grandchild)
+         grandchild => child%left
+         nullify(child%left)
       else
-         call move_alloc(child%right, grandchild)
+         grandchild => child%right
+         nullify(child%right)
       end if
 
       ! right - right
       if (node%key.lt.child%key .and. child%key.lt.grandchild%key) then
-         call move_alloc(node%left, t1)
-         call move_alloc(child%left, t2)
-         call move_alloc(grandchild%left, t3)
-         call move_alloc(grandchild%right, t4)
+         t1 => node%left
+         t2 => child%left
+         t3 => grandchild%left
+         t4 => grandchild%right
 
-         call move_alloc(node, min)
-         call move_alloc(child, mid)
-         call move_alloc(grandchild, max)
+         min => node
+         mid => child
+         max => grandchild
       ! right - left
       else if (node%key.lt.child%key .and. child%key.gt.grandchild%key) then
-         call move_alloc(node%left, t1)
-         call move_alloc(grandchild%left, t2)
-         call move_alloc(grandchild%right, t3)
-         call move_alloc(child%right, t4)
+         t1 => node%left
+         t2 => grandchild%left
+         t3 => grandchild%right
+         t4 => child%right
 
-         call move_alloc(node, min)
-         call move_alloc(grandchild, mid)
-         call move_alloc(child, max)
+         min => node
+         mid => grandchild
+         max => child
       ! left - right
       else if (node%key.gt.child%key .and. child%key.lt.grandchild%key) then
-         call move_alloc(child%left, t1)
-         call move_alloc(grandchild%left, t2)
-         call move_alloc(grandchild%right, t3)
-         call move_alloc(node%right, t4)
+         t1 => child%left
+         t2 => grandchild%left
+         t3 => grandchild%right
+         t4 => node%right
 
-         call move_alloc(child, min)
-         call move_alloc(grandchild, mid)
-         call move_alloc(node, max)
+         min => child
+         mid => grandchild
+         max => node
       ! left - left
-      else ! (self%key.gt.parent%key.and.parent%key.gt.greatparent%key) then
-         call move_alloc(grandchild%left, t1)
-         call move_alloc(grandchild%right, t2)
-         call move_alloc(child%right, t3)
-         call move_alloc(node%right, t4)
+      else ! (node%key.gt.child%key .and. child%key.gt.grandchild%key)
+         t1 => grandchild%left
+         t2 => grandchild%right
+         t3 => child%right
+         t4 => node%right
 
-         call move_alloc(grandchild, min)
-         call move_alloc(child, mid)
-         call move_alloc(node, max)
+         min => grandchild
+         mid => child
+         max => node
       end if
 
-      call move_alloc(t1, min%left)
-      call move_alloc(t2, min%right)
-      call move_alloc(t3, max%left)
-      call move_alloc(t4, max%right)
+      min%left => t1
+      min%right => t2
+      max%left => t3
+      max%right => t4
 
-      call move_alloc(min, mid%left)
-      call move_alloc(max, mid%right)
+      mid%left => min
+      mid%right => max
    end subroutine
 
    pure function avl_node_balance(self)
@@ -360,11 +379,11 @@ contains
       class(avl_node), intent(in) :: self
       integer :: left_height, right_height
       left_height = 0
-      if (allocated(self%left)) then
+      if (associated(self%left)) then
          left_height = self%left%height()
       end if 
       right_height = 0
-      if (allocated(self%right)) then
+      if (associated(self%right)) then
          right_height = self%right%height()
       end if
       avl_node_balance = left_height - right_height
@@ -373,13 +392,13 @@ contains
    pure function avl_node_isleaf(self)
       logical :: avl_node_isleaf
       class(avl_node), intent(in) :: self
-      avl_node_isleaf = .not.(allocated(self%left).or.allocated(self%right))
+      avl_node_isleaf = .not.(associated(self%left).or.associated(self%right))
    end function
 
    pure function avl_node_isinner(self)
       logical :: avl_node_isinner
       class(avl_node), intent(in) :: self
-      avl_node_isinner = allocated(self%left).and.allocated(self%right)
+      avl_node_isinner = associated(self%left).and.associated(self%right)
    end function
 
    pure recursive function avl_node_height(self)
@@ -388,11 +407,11 @@ contains
       integer :: left_height, right_height
 
       left_height = 0
-      if (allocated(self%left)) then
+      if (associated(self%left)) then
          left_height = self%left%height()
       end if
       right_height = 0
-      if (allocated(self%right)) then
+      if (associated(self%right)) then
          right_height = self%right%height()
       end if
       avl_node_height = max(left_height, right_height) + 1
@@ -401,7 +420,7 @@ contains
    recursive function avl_node_min(self)
       class(avl_node), pointer :: avl_node_min
       class(avl_node), target, intent(in) :: self
-      if (allocated(self%left)) then
+      if (associated(self%left)) then
          avl_node_min => self%left%min()
       else
          avl_node_min => self
@@ -411,7 +430,7 @@ contains
    recursive function avl_node_max(self)
       class(avl_node), pointer :: avl_node_max
       class(avl_node), target, intent(in) :: self
-      if (allocated(self%right)) then
+      if (associated(self%right)) then
          avl_node_max => self%right%max()
       else
          avl_node_max => self
@@ -422,7 +441,7 @@ contains
    pure function avl_tree_empty(self)
       class(avl_tree), intent(in) :: self
       logical :: avl_tree_empty
-      avl_tree_empty = .not.allocated(self%head)
+      avl_tree_empty = .not.associated(self%head)
    end function
 
    subroutine avl_tree_find(self, key, stat, node)
@@ -444,7 +463,7 @@ contains
       character(len=*), intent(in) :: key
       integer, intent(in) :: val
       logical, intent(inout) :: stat
-      class(avl_node), allocatable :: mid
+      class(avl_node), pointer :: mid
 
       if (self%empty()) then
          stat = .true.
@@ -453,8 +472,8 @@ contains
          call avl_node_add(self%head, key, val, stat)
          if (stat) then
             call avl_node_rebalance(self%head, mid)
-            if (allocated(mid)) then
-               call move_alloc(mid, self%head)
+            if (associated(mid)) then
+               self%head => mid
             end if
          end if
       end if
@@ -464,7 +483,8 @@ contains
       class(avl_tree), intent(inout) :: self
       character(len=*), intent(in) :: key
       logical, intent(out) :: stat
-      class(avl_node), allocatable :: left, dum
+      class(avl_node), pointer :: left, dum
+      nullify(dum)
 
       if (self%empty()) then
          stat = .false.
@@ -472,18 +492,19 @@ contains
          stat = .true.
          call avl_node_unlink(self%head, dum)
          call destroy_avl_node(self%head)
-         call move_alloc(dum, self%head)
+         self%head => dum
+         nullify(dum)
 
          call avl_node_rebalance(self%head, dum)
-         if (allocated(dum)) then
-            call move_alloc(dum, self%head)
+         if (associated(dum)) then
+            self%head => dum
          end if
       else
          call avl_node_remove(self%head, key, stat)
          if (stat) then
             call avl_node_rebalance(self%head, dum)
-            if (allocated(dum)) then
-               call move_alloc(dum, self%head)
+            if (associated(dum)) then
+               self%head => dum
             end if
          end if
       end if
@@ -505,7 +526,7 @@ contains
       logical, intent(out) :: stat
       stat = .false.
       nullify(min)
-      if (allocated(self%head)) then
+      if (associated(self%head)) then
          min => self%head%min()
          stat = .true.
       end if
@@ -517,7 +538,7 @@ contains
       logical, intent(out) :: stat
       stat = .false.
       nullify(max)
-      if (allocated(self%head)) then
+      if (associated(self%head)) then
          max => self%head%max()
          stat = .true.
       end if
@@ -529,7 +550,7 @@ contains
 
    subroutine destroy_avl_tree(self)
       type(avl_tree) :: self
-      if (allocated(self%head)) then
+      if (associated(self%head)) then
          call destroy_avl_node(self%head)
       end if
    end subroutine

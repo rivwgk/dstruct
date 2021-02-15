@@ -1,4 +1,4 @@
-program avltest
+program avltreetest
    use AVLTree, only: avl_tree, avl_node, destroy_avl_tree
    implicit none
    type(avl_tree), target :: tree
@@ -28,22 +28,21 @@ program avltest
    call destroy_avl_tree(tree)
 contains
    recursive subroutine output_tree(node, depth)
-      class(avl_node), allocatable, intent(in) :: node
+      class(avl_node), pointer, intent(in) :: node
       integer, intent(in) :: depth
-      integer :: i
 
-      if (.not.allocated(node)) then
+      if (.not.associated(node)) then
          print*, '-'
          return
       end if
 
       print*, repeat('  ', depth), node%key, ', ', node%val
-      if (allocated(node%left)) then
+      if (associated(node%left)) then
          call output_tree(node%left, depth+1)
       else
          print*, repeat('  ', depth+1), '-'
       end if
-      if (allocated(node%right)) then
+      if (associated(node%right)) then
          call output_tree(node%right, depth+1)
       else
          print*, repeat('  ', depth+1), '-'
@@ -56,7 +55,7 @@ contains
       integer, intent(in) :: val
       logical, intent(out) :: stat
       call tree%add(key, val, stat)
-      print'(a,a,a,i)', 'added key `', key, '` height: ', tree%height()
+      print'(a,a,a,i0)', 'added key `', key, '` height: ', tree%height()
       call output_tree(tree%head, 0)
    end subroutine
 
@@ -65,7 +64,7 @@ contains
       character(len=*), intent(in) :: key
       logical, intent(out) :: stat
       call tree%remove(key, stat)
-      print'(a,a,a,i)', 'removed key `', key, '` height: ', tree%height()
+      print'(a,a,a,i0)', 'removed key `', key, '` height: ', tree%height()
       call output_tree(tree%head, 0)
   end subroutine
 end program
