@@ -10,4 +10,8 @@ module Concepts
          class(*), intent(in) :: lhs, rhs
       end function
    end interface
+
+   type :: container_type
+      class(*), allocatable :: obj
+   end type
 end module

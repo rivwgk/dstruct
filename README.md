@@ -11,3 +11,4 @@ Currently builds with:
 Currently here can be found:
 
  + AVL trees. Tree traversal is not yet implemented
+ + Dynamic arrays

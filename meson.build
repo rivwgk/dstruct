@@ -5,7 +5,8 @@ project(
 )
 
 sources = []
-mapping_sources = []
+avltree_sources = []
+dynarray_sources = []
 subdir('src')
 
 dstruct_lib = library(
@@ -13,12 +14,22 @@ dstruct_lib = library(
   sources: sources,
 )
 
-map_test = executable(
+avltree_test = executable(
   'mapping_test',
-  sources: mapping_sources,
+  sources: avltree_sources,
   link_with: dstruct_lib,
 )
 test(
-  'testing default operations of mapping',
-  map_test,
+  'testing default operations of the avl tree',
+  avltree_test,
+)
+
+dynarray_test = executable(
+  'dynamic_array_test',
+  sources: dynarray_sources,
+  link_with: dstruct_lib,
+)
+test(
+  'testing default operations of the dynamic array',
+  dynarray_test,
 )
