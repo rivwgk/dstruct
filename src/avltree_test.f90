@@ -1,8 +1,9 @@
 program avltreetest
    use AVLTree, only: avl_tree, avl_node, destroy_avl_tree
    implicit none
-   type(avl_tree), target :: tree
+   type(avl_tree), allocatable, target :: tree
    logical :: stat
+   allocate(tree, source=avl_tree(ordering))
 
    call test_add(tree, 'x', -2, stat)
    call test_add(tree, 'y', 5, stat)
@@ -36,7 +37,17 @@ contains
          return
       end if
 
-      print*, repeat('  ', depth), node%key, ', ', node%val
+      write(*,'(a)',advance='no') repeat('  ', depth)
+      select type (key => node%key)
+      type is (character(*))
+         write(*,'(a)',advance='no') key
+      end select
+      write(*,'(a)',advance='no') ', '
+      select type (val => node%val)
+      type is (integer)
+         print*, val
+      end select
+
       if (associated(node%left)) then
          call output_tree(node%left, depth+1)
       else
@@ -66,5 +77,27 @@ contains
       call tree%remove(key, stat)
       print'(a,a,a,i0)', 'removed key `', key, '` height: ', tree%height()
       call output_tree(tree%head, 0)
-  end subroutine
+   end subroutine
+
+   pure function ordering(lhs, rhs)
+      integer :: ordering
+      class(*), intent(in) :: lhs, rhs
+      select type (lhs)
+      type is (character(*))
+         select type (rhs)
+         type is (character(*))
+            if (lhs .eq. rhs) then
+               ordering = 0
+            else if (lhs .lt. rhs) then
+               ordering = -1
+            else
+               ordering = 1
+            end if
+         class default
+            error stop
+         end select
+      class default
+         error stop
+      end select
+   end function
 end program
