@@ -1,4 +1,4 @@
-module Concepts
+module dstruct_concepts
    implicit none
 
    abstract interface

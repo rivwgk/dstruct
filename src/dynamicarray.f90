@@ -1,33 +1,38 @@
-module DynamicArray
-   use Concepts, only: container_type
+module dstruct_dynamicarray
+   use dstruct_concepts, only: container_type
    implicit none
    private
-   public :: dynamic_array
-   public :: destroy_dynamic_array
+   public :: dynamicarray_type
 
-   type :: dynamic_array
+   type :: dynamicarray_type
       integer, private :: used, reserved
       type(container_type), private, pointer :: field(:)
    contains
-      procedure :: used_size => dynamic_array_used
-      procedure :: reserved_size => dynamic_array_reserved
-      procedure :: push_back => dynamic_array_push_back
-      procedure :: pop_back => dynamic_array_pop_back
-      procedure :: at => dynamic_array_at
-      procedure :: first => dynamic_array_first
-      procedure :: last => dynamic_array_last
-      procedure :: is_empty => dynamic_array_is_empty
-      procedure :: shrink_to_fit => dynamic_array_shrink_to_fit
-      procedure, private :: resize => dynamic_array_resize
+      procedure :: used_size => dynamicarray_used
+      procedure :: reserved_size => dynamicarray_reserved
+      procedure :: push_back => dynamicarray_push_back
+      procedure :: pop_back => dynamicarray_pop_back
+      procedure :: insert => dynamicarray_insert
+      procedure :: remove => dynamicarray_remove
+      procedure :: at => dynamicarray_at
+      procedure :: first => dynamicarray_first
+      procedure :: last => dynamicarray_last
+      procedure :: swap => dynamicarray_swap
+      procedure :: is_empty => dynamicarray_is_empty
+      procedure :: shrink_to_fit => dynamicarray_shrink_to_fit
+      procedure, private :: resize => dynamicarray_resize
+      final :: destroy_dynamicarray
    end type
-   interface dynamic_array
-      module procedure :: new_dynamic_array
+   interface dynamicarray_type
+      module procedure :: new_dynamicarray
+      module procedure :: new_dynamicarray_from_array
    end interface
 
 contains
 
-   function new_dynamic_array(size) result(self)
-      type(dynamic_array) :: self
+   !>
+   function new_dynamicarray(size) result(self)
+      type(dynamicarray_type) :: self
       integer, optional, intent(in) :: size
       self%used = 0
       if (present(size)) then
@@ -38,82 +43,145 @@ contains
       allocate(self%field(size))
    end function
 
-   subroutine destroy_dynamic_array(self)
-      type(dynamic_array), allocatable, intent(inout) :: self
+   !>
+   function new_dynamicarray_from_array(values) result(self)
+      type(dynamicarray_type) :: self
+      class(*), intent(in) :: values(:)
+      integer :: i
+      self%used = size(values)
+      self%reserved = size(values)
+      allocate(self%field(size(values)))
+      do i=1,size(values)
+         self%field(i)%obj = values(i)
+      end do
+   end function
+
+   subroutine destroy_dynamicarray(self)
+      type(dynamicarray_type), intent(inout) :: self
+      integer :: i
       self%used = 0
       self%reserved = 0
+      do i=1,self%used
+         deallocate(self%field(i)%obj)
+      end do
       deallocate(self%field)
    end subroutine
 
-   function dynamic_array_used(self)
-      integer :: dynamic_array_used
-      class(dynamic_array), intent(in) :: self
-      dynamic_array_used = self%used
+   function dynamicarray_used(self)
+      integer :: dynamicarray_used
+      class(dynamicarray_type), intent(in) :: self
+      dynamicarray_used = self%used
    end function
 
-   function dynamic_array_reserved(self)
-      integer :: dynamic_array_reserved
-      class(dynamic_array), intent(in) :: self
-      dynamic_array_reserved = self%reserved
+   function dynamicarray_reserved(self)
+      integer :: dynamicarray_reserved
+      class(dynamicarray_type), intent(in) :: self
+      dynamicarray_reserved = self%reserved
    end function
 
-   subroutine dynamic_array_push_back(self, obj)
-      class(dynamic_array), intent(inout) :: self
+   subroutine dynamicarray_push_back(self, obj)
+      class(dynamicarray_type), intent(inout) :: self
       class(*), intent(in) :: obj
 
-      if (self%used .eq. self%reserved) then
-         call self%resize(3*self%reserved/2)
-      end if
+      if (self%used .eq. self%reserved) &
+    &    call self%resize(3*self%reserved/2)
       self%used = self%used + 1
       self%field(self%used)%obj = obj
    end subroutine
 
-   subroutine dynamic_array_pop_back(self)
-      class(dynamic_array), intent(inout) :: self
+   subroutine dynamicarray_pop_back(self, removed)
+      class(dynamicarray_type), intent(inout) :: self
+      type(container_type), intent(out), optional :: removed
 
+      if (present(removed)) then
+         call move_alloc(self%field(self%used)%obj, removed%obj)
+      else
+         deallocate(self%field(self%used)%obj)
+      end if
       self%used = self%used - 1
    end subroutine
 
-   function dynamic_array_at(self, i)
-      type(container_type), pointer :: dynamic_array_at
-      class(dynamic_array), intent(inout) :: self
+   subroutine dynamicarray_insert(self, i, obj)
+      class(dynamicarray_type), intent(inout) :: self
+      integer, intent(in) :: i
+      class(*), intent(in) :: obj
+
+      if (self%used .eq. self%reserved) &
+    &    call self%resize(3*self%reserved/2)
+      self%field(i+1:self%used+1) = self%field(i:self%used)
+      self%used = self%used + 1
+      self%field(i)%obj = obj
+   end subroutine
+
+   subroutine dynamicarray_remove(self, i, removed)
+      class(dynamicarray_type), intent(inout) :: self
+      integer, intent(in) :: i
+      type(container_type), intent(out), optional :: removed
+
+      if (present(removed)) then
+         call move_alloc(self%field(i)%obj, removed%obj)
+      else
+         deallocate(self%field(i)%obj)
+      end if
+      self%field(i:self%used-1) = self%field(i+1:self%used)
+      deallocate(self%field(self%used)%obj)
+      self%used = self%used - 1
+   end subroutine
+
+   function dynamicarray_at(self, i)
+      type(container_type), pointer :: dynamicarray_at
+      class(dynamicarray_type), intent(inout) :: self
       integer, intent(in) :: i
 
-      dynamic_array_at => self%field(i)
+      dynamicarray_at => self%field(i)
    end function
 
-   function dynamic_array_first(self)
-      type(container_type), pointer :: dynamic_array_first
-      class(dynamic_array), intent(in) :: self
-      dynamic_array_first => self%field(1)
+   function dynamicarray_first(self)
+      type(container_type), pointer :: dynamicarray_first
+      class(dynamicarray_type), intent(in) :: self
+      dynamicarray_first => self%field(1)
    end function
 
-   function dynamic_array_last(self)
-      type(container_type), pointer :: dynamic_array_last
-      class(dynamic_array), intent(in) :: self
-      dynamic_array_last => self%field(self%used)
+   function dynamicarray_last(self)
+      type(container_type), pointer :: dynamicarray_last
+      class(dynamicarray_type), intent(in) :: self
+      dynamicarray_last => self%field(self%used)
    end function
 
-   function dynamic_array_is_empty(self)
-      logical :: dynamic_array_is_empty
-      class(dynamic_array), intent(in) :: self
-      dynamic_array_is_empty = self%used .eq. 0
+   subroutine dynamicarray_swap(self, i, j)
+      class(dynamicarray_type), intent(inout) :: self
+      integer, intent(in) :: i, j
+      class(*), allocatable :: tmp
+
+      call move_alloc(self%field(i)%obj, tmp)
+      call move_alloc(self%field(j)%obj, self%field(i)%obj)
+      call move_alloc(tmp, self%field(j)%obj)
+   end subroutine
+
+   function dynamicarray_is_empty(self)
+      logical :: dynamicarray_is_empty
+      class(dynamicarray_type), intent(in) :: self
+      dynamicarray_is_empty = self%used .eq. 0
    end function
 
-   subroutine dynamic_array_shrink_to_fit(self)
-      class(dynamic_array), intent(inout) :: self
+   subroutine dynamicarray_shrink_to_fit(self)
+      class(dynamicarray_type), intent(inout) :: self
       if (self%used .ne. self%reserved) then
          call self%resize(self%used)
       end if
    end subroutine
 
-   subroutine dynamic_array_resize(self, size)
-      class(dynamic_array), intent(inout) :: self
+   subroutine dynamicarray_resize(self, size)
+      class(dynamicarray_type), intent(inout) :: self
       integer, intent(in) :: size
+      integer :: s
       type(container_type), pointer :: temp(:)
 
       allocate(temp(size))
       temp(:min(size,self%reserved)) = self%field(:min(size,self%reserved))
+      do s=1,self%used
+         deallocate(self%field(s)%obj)
+      end do
       deallocate(self%field)
       self%field => temp
       self%reserved = size
